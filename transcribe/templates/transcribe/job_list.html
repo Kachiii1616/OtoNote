@@ -1,0 +1,364 @@
+{% load static %}
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jobs</title>
+
+  <!-- フォント -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+font-family: "M PLUS Rounded 1c", "Inter", system-ui, -apple-system, "Noto Sans JP", sans-serif;
+
+    :root{
+      --bg: #fbfaf9;
+      --card: rgba(255,255,255,.86);
+      --text: #2b2b2b;
+      --muted: #6b6b6b;
+      --line: rgba(40,40,40,.10);
+
+      --accent: #c08a7a;
+      --accent2: #e6c6c0;
+      --accent3: #f3e7e4;
+
+      --shadow: 0 16px 40px rgba(25,25,25,.10);
+      --shadow2: 0 10px 22px rgba(25,25,25,.08);
+
+      --radius: 22px;
+      --radius2: 16px;
+
+      --focus: 0 0 0 4px rgba(192,138,122,.20);
+
+      --ok: #2e7d32;
+      --warn: #c07c2f;
+      --err: #c62828;
+    }
+
+    *{ box-sizing: border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      color: var(--text);
+      background:
+        radial-gradient(900px 500px at 20% 10%, rgba(230,198,192,.35), transparent 60%),
+        radial-gradient(900px 500px at 80% 20%, rgba(192,138,122,.22), transparent 55%),
+        radial-gradient(900px 500px at 60% 90%, rgba(243,231,228,.70), transparent 55%),
+        var(--bg);
+      font-family: "Zen Kaku Gothic New", "Inter", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans JP", sans-serif;
+      letter-spacing: .02em;
+    }
+
+    .wrap{
+      min-height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: 28px 16px;
+    }
+
+    .card{
+      width: min(1100px, 100%);
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      backdrop-filter: blur(10px);
+    }
+
+    .header{
+      padding: 26px 28px 18px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(135deg, rgba(255,255,255,.70), rgba(243,231,228,.55));
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 14px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(192,138,122,.25);
+      background: rgba(243,231,228,.70);
+      color: #553b35;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .dot{
+      width:10px; height:10px; border-radius:999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(192,138,122,.18);
+    }
+
+    h1{
+      margin: 0;
+      font-size: clamp(22px, 2.2vw, 28px);
+      letter-spacing: .03em;
+    }
+
+    .sub{
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(192,138,122,.35);
+      background: linear-gradient(135deg, rgba(192,138,122,.95), rgba(230,198,192,.95));
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: .03em;
+      cursor:pointer;
+      box-shadow: var(--shadow2);
+      transition: transform .08s ease, filter .15s ease, box-shadow .15s ease;
+      text-decoration:none;
+      min-width: 170px;
+      white-space: nowrap;
+    }
+    .btn:hover{ filter: brightness(1.02); }
+    .btn:active{ transform: translateY(1px); }
+
+    .btn-secondary{
+      background: rgba(255,255,255,.80);
+      color: #5a3e37;
+      border: 1px solid rgba(192,138,122,.25);
+      box-shadow: none;
+      min-width: auto;
+      padding: 10px 14px;
+      font-weight: 700;
+    }
+    .btn-secondary:hover{
+      box-shadow: 0 10px 22px rgba(25,25,25,.06);
+    }
+
+    .content{
+      padding: 18px 28px 26px;
+    }
+
+    .tableWrap{
+      border-radius: var(--radius2);
+      border: 1px solid rgba(40,40,40,.10);
+      overflow:hidden;
+      background: rgba(255,255,255,.82);
+    }
+
+    table{
+      width:100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+
+    thead th{
+      text-align:left;
+      padding: 12px 14px;
+      background: rgba(243,231,228,.55);
+      border-bottom: 1px solid rgba(40,40,40,.10);
+      color: #3b3b3b;
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      font-weight: 900;
+    }
+
+    tbody td{
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(40,40,40,.08);
+      vertical-align: middle;
+    }
+
+    tbody tr:hover{
+      background: rgba(243,231,228,.35);
+    }
+
+    .jobLink{
+      color: rgba(90,62,55,.95);
+      text-decoration: none;
+      font-weight: 800;
+      border-bottom: 1px solid rgba(192,138,122,.25);
+      padding-bottom: 1px;
+    }
+    .jobLink:hover{ border-bottom-color: rgba(192,138,122,.75); }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(40,40,40,.12);
+      background: rgba(255,255,255,.70);
+      font-weight: 900;
+      letter-spacing: .03em;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .pillDone{ border-color: rgba(46,125,50,.20); }
+    .pillRun{ border-color: rgba(192,138,122,.35); }
+    .pillErr{ border-color: rgba(198,40,40,.20); }
+
+    .progressBar{
+      width: 140px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(40,40,40,.10);
+      overflow:hidden;
+      border: 1px solid rgba(40,40,40,.08);
+    }
+    .progressFill{
+      height:100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(192,138,122,.95), rgba(230,198,192,.95));
+    }
+
+    .muted{
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .fileName{
+      max-width: 340px;
+      overflow:hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display:block;
+    }
+
+    .empty{
+      padding: 26px 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .footer{
+      padding: 14px 28px 22px;
+      color: rgba(90,90,90,.75);
+      font-size: 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      border-top: 1px solid rgba(40,40,40,.08);
+      background: rgba(255,255,255,.35);
+    }
+
+    @media (max-width: 840px){
+      .progressBar{ width: 100px; }
+      .fileName{ max-width: 200px; }
+    }
+    @media (max-width: 640px){
+      .header, .content, .footer{ padding-left: 16px; padding-right: 16px; }
+      .btn{ width:100%; }
+      .topbar{ width:100%; }
+      .tableWrap{ overflow:auto; }
+      table{ min-width: 820px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card" role="main">
+      <div class="header">
+        <div class="topbar">
+          <div class="badge"><span class="dot"></span> Jobs</div>
+          <a class="btn" href="{% url 'job_create' %}">＋ New Job</a>
+        </div>
+
+        <h1>Transcription Jobs</h1>
+        <p class="sub">
+          作成したジョブの一覧です。進捗が確認でき、完了後はTXTをダウンロードできます。
+        </p>
+      </div>
+
+      <div class="content">
+        <div class="tableWrap">
+          {% if jobs %}
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Status</th>
+                  <th>Progress</th>
+                  <th>Created</th>
+                  <th>File</th>
+                </tr>
+              </thead>
+<tbody>
+  {% for j in jobs %}
+  <tr>
+<td>
+  <a class="jobLink" href="{% url 'job_detail' j.id %}">
+    {% if j.input_file %}
+      {{ j.display_filename }}
+    {% else %}
+      Transcription
+    {% endif %}
+  </a>
+</td>
+
+    <td>
+      {% if j.status == "done" %}
+        <span class="pill pillDone">✔️ DONE</span>
+      {% elif j.status == "running" %}
+        <span class="pill pillRun">🫧 RUNNING</span>
+      {% elif j.status == "queued" %}
+        <span class="pill pillRun">🕊️ QUEUED</span>
+      {% else %}
+        <span class="pill pillErr">⚠️ ERROR</span>
+      {% endif %}
+    </td>
+
+    <td>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div class="progressBar" aria-label="progress">
+          <div class="progressFill" style="width: {{ j.progress }}%;"></div>
+        </div>
+        <span class="muted">{{ j.progress }}%</span>
+      </div>
+    </td>
+
+    <td class="muted">{{ j.created_at }}</td>
+  </tr>
+  {% endfor %}
+</tbody>
+            </table>
+          {% else %}
+            <div class="empty">
+              まだジョブがありません。<br>
+              右上の <b>「＋ New Job」</b> から最初のジョブを作成してみてください 🕊️
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="footer">
+        <div>© dj_transcriber</div>
+        <div style="opacity:.9;">milk-tea / dusty-rose theme</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
