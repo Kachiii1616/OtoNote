@@ -1,30 +1,42 @@
-# Python
+# env / secrets
+.env
+.env.*
+*.env
+
+# python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+*.egg-info/
+.dist/
+build/
 
 # venv
-.venv/
 venv/
-ENV/
+.venv/
 env/
+ENV/
+venvsource/
+
+# django
+db.sqlite3
+media/
+staticfiles/
 
 # macOS
 .DS_Store
 
-# venv
-.venv/
-venv/
+# editor
+.vscode/
+.idea/
 
-# venv
-.venv/
-venv/
+# django runtime files
+media/
+db.sqlite3
 
 # env / secrets
 .env
 .env.*
 *.env
 .env.save
-*.key
-*.pem
