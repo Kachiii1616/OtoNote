@@ -20,3 +20,11 @@ venv/
 # venv
 .venv/
 venv/
+
+# env / secrets
+.env
+.env.*
+*.env
+.env.save
+*.key
+*.pem
