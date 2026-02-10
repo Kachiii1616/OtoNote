@@ -31,3 +31,12 @@ staticfiles/
 .vscode/
 .idea/
 
+# django runtime files
+media/
+db.sqlite3
+
+# env / secrets
+.env
+.env.*
+*.env
+.env.save
