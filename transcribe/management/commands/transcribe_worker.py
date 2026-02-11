@@ -1,10 +1,12 @@
 from dotenv import load_dotenv
 load_dotenv()
+
 import os
-from pyannote.audio import Pipeline
 import time
 import subprocess
 from pathlib import Path
+
+from pyannote.audio import Pipeline
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -14,8 +16,14 @@ import whisper
 
 from transcribe.models import TranscriptionJob
 
+print("✅ transcribe_worker booted", flush=True)
+print("DATABASE_URL set?", bool(os.environ.get("DATABASE_URL")), flush=True)
+print("HF_TOKEN set?", bool(os.environ.get("HF_TOKEN")), flush=True)
+
+
 def run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
+
 
 def ensure_wav_16k_mono(input_audio: Path, out_wav: Path):
     subprocess.run([
@@ -56,7 +64,6 @@ def diarize_with_pyannote(input_audio: Path, work_dir: Path):
     segments.sort(key=lambda x: x["start"])
     return segments
 
-# 機械的な分割関数（今回は使いませんが、残しておいても問題ありません）python3 -c "from dotenv import load_dotenv; load_dotenv(); import os; print(os.environ.get('HF_TOKEN'))"
 
 def split_audio(input_path: Path, out_dir: Path, segment_sec: int) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -73,6 +80,7 @@ def split_audio(input_path: Path, out_dir: Path, segment_sec: int) -> list[Path]
     ])
     return sorted(out_dir.glob("chunk_*.wav"))
 
+
 class Command(BaseCommand):
     help = "Process queued transcription jobs (offline whisper + diarization)."
 
@@ -82,6 +90,9 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         sleep = opts["sleep"]
         self.stdout.write(self.style.SUCCESS("Transcribe worker started. Ctrl+C to stop."))
+
+        print("🔎 worker runtime check", flush=True)
+        print("queued count:", TranscriptionJob.objects.filter(status="queued").count(), flush=True)
 
         model_cache = {}
 
@@ -110,17 +121,15 @@ class Command(BaseCommand):
                 work_dir = input_path.parent / f"job_{job.id}_chunks"
                 work_dir.mkdir(parents=True, exist_ok=True)
 
-                # 1. 話者分離を実行
                 segments = diarize_with_pyannote(input_path, work_dir)
                 wav_16k = work_dir / "audio_16k.wav"
 
                 speakers = sorted({s["speaker"] for s in segments})
-                print(f"=== DIARIZATION SUMMARY (Job {job.id}) ===")
-                print("speakers:", speakers)
-                print("segments:", len(segments))
-                print("===========================")
+                print(f"=== DIARIZATION SUMMARY (Job {job.id}) ===", flush=True)
+                print("speakers:", speakers, flush=True)
+                print("segments:", len(segments), flush=True)
+                print("===========================", flush=True)
 
-                # 2. Whisperモデルの準備
                 if job.model_name not in model_cache:
                     model_cache[job.model_name] = whisper.load_model(job.model_name)
                 model = model_cache[job.model_name]
@@ -128,23 +137,20 @@ class Command(BaseCommand):
                 results = []
                 total = len(segments)
 
-                # 3. 話者ごとのセグメントを1つずつ文字起こし
                 for idx, seg in enumerate(segments, start=1):
                     speaker = seg["speaker"]
                     start = seg["start"]
                     duration = seg["end"] - start
 
-                    if duration < 0.1: # 短すぎるものは無視
+                    if duration < 0.1:
                         continue
 
-                    # その話者の区間だけを切り出し
                     chunk_path = work_dir / f"seg_{idx:03d}.wav"
                     subprocess.run([
                         "ffmpeg", "-y", "-ss", str(start), "-t", str(duration),
                         "-i", str(wav_16k), "-ac", "1", "-ar", "16000", str(chunk_path)
                     ], capture_output=True)
 
-                    # 文字起こし実行
                     kwargs = {"fp16": False}
                     if job.language and job.language != "auto":
                         kwargs["language"] = job.language
@@ -153,14 +159,11 @@ class Command(BaseCommand):
                     text = res.get("text", "").strip()
 
                     if text:
-                        # 形式: [SPEAKER_00]: こんにちは
                         results.append(f"[{speaker}]: {text}")
 
-                    # 進捗更新
                     job.progress = int(idx * 100 / total)
                     job.save(update_fields=["progress"])
 
-                # 4. 結果の保存
                 job.output_text = "\n".join(results)
                 job.status = "done"
                 job.progress = 100
