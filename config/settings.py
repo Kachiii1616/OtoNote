@@ -25,8 +25,11 @@ SECRET_KEY = 'django-insecure-58_oe*lq6fr$ji3!$=u#vq%f%so@zqq%g14^epp$)suaqo0mk*
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = [
+    "oto-note.onrender.com",
+    "localhost",
+    "127.0.0.1",
+]
 
 # Application definition
 
@@ -130,11 +133,5 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
-
-ALLOWED_HOSTS = [
-    "oto-note.onrender.com",
-    "localhost",
-    "127.0.0.1",
-]
 
 CSRF_TRUSTED_ORIGINS = ["https://oto-note.onrender.com"]
