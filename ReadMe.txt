@@ -159,6 +159,8 @@ DATABASE_URL=sqlite:///db.sqlite3
 
 HF_TOKEN=xxxxxxxxxxxxxxxxxxxx
 
+---
+
 8. ローカル起動手順
 8.1 依存（ffmpeg）
 
