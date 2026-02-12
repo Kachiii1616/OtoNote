@@ -4,14 +4,13 @@ load_dotenv()
 import os
 import time
 import subprocess
+import shutil
 from pathlib import Path
 
 from pyannote.audio import Pipeline
-
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
-
 import whisper
 
 from transcribe.models import TranscriptionJob
@@ -22,25 +21,47 @@ print("HF_TOKEN set?", bool(os.environ.get("HF_TOKEN")), flush=True)
 
 
 def run(cmd: list[str]) -> None:
-    subprocess.run(cmd, check=True)
+    """失敗時にstdout/stderr込みで例外化（Renderの原因特定ができる）"""
+    p = subprocess.run(cmd, capture_output=True, text=True)
+    if p.returncode != 0:
+        raise RuntimeError(
+            "Command failed\n"
+            f"cmd: {' '.join(cmd)}\n"
+            f"stdout:\n{p.stdout}\n"
+            f"stderr:\n{p.stderr}\n"
+        )
 
 
 def ensure_wav_16k_mono(input_audio: Path, out_wav: Path):
-    subprocess.run([
+    run([
         "ffmpeg", "-y",
+        "-hide_banner",
+        "-loglevel", "error",
         "-i", str(input_audio),
         "-vn",
         "-ac", "1",
         "-ar", "16000",
         str(out_wav),
-    ], check=True)
+    ])
     return out_wav
+
+
+def get_audio_duration_sec(path: Path) -> float:
+    """ffprobeで音声長を取得（diarize=False の一括起こし用）"""
+    p = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+        capture_output=True, text=True
+    )
+    if p.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {p.stderr}")
+    return float(p.stdout.strip() or 0.0)
 
 
 def diarize_with_pyannote(input_audio: Path, work_dir: Path):
     hf = os.environ.get("HF_TOKEN", "").strip()
     if not hf:
-        raise RuntimeError("HF_TOKEN is missing. export HF_TOKEN='...'")
+        raise RuntimeError("HF_TOKEN is missing. Set HF_TOKEN in environment variables.")
 
     work_dir.mkdir(parents=True, exist_ok=True)
     wav_path = work_dir / "audio_16k.wav"
@@ -65,20 +86,27 @@ def diarize_with_pyannote(input_audio: Path, work_dir: Path):
     return segments
 
 
-def split_audio(input_path: Path, out_dir: Path, segment_sec: int) -> list[Path]:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    pattern = str(out_dir / "chunk_%03d.wav")
-    run([
-        "ffmpeg", "-y",
-        "-i", str(input_path),
-        "-vn",
-        "-ac", "1",
-        "-ar", "16000",
-        "-f", "segment",
-        "-segment_time", str(segment_sec),
-        pattern
-    ])
-    return sorted(out_dir.glob("chunk_*.wav"))
+def merge_segments(segments, min_dur=1.2, gap=0.4):
+    """短すぎる断片を同一speakerで結合（速度・精度改善）"""
+    if not segments:
+        return []
+
+    merged = [segments[0].copy()]
+    for s in segments[1:]:
+        last = merged[-1]
+        if s["speaker"] == last["speaker"] and (s["start"] - last["end"]) <= gap:
+            last["end"] = max(last["end"], s["end"])
+        else:
+            merged.append(s.copy())
+
+    # min_dur 未満を前後に吸収（簡易版）
+    fixed = []
+    for s in merged:
+        if fixed and (s["end"] - s["start"]) < min_dur:
+            fixed[-1]["end"] = s["end"]
+        else:
+            fixed.append(s)
+    return fixed
 
 
 class Command(BaseCommand):
@@ -90,9 +118,6 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         sleep = opts["sleep"]
         self.stdout.write(self.style.SUCCESS("Transcribe worker started. Ctrl+C to stop."))
-
-        print("🔎 worker runtime check", flush=True)
-        print("queued count:", TranscriptionJob.objects.filter(status="queued").count(), flush=True)
 
         model_cache = {}
 
@@ -116,48 +141,64 @@ class Command(BaseCommand):
                 job.error_message = ""
                 job.save()
 
+            input_path = Path(job.input_file.path)
+            work_dir = input_path.parent / f"job_{job.id}_temp"
+            work_dir.mkdir(parents=True, exist_ok=True)
+
             try:
-                input_path = Path(job.input_file.path)
-                work_dir = input_path.parent / f"job_{job.id}_chunks"
-                work_dir.mkdir(parents=True, exist_ok=True)
-
-                segments = diarize_with_pyannote(input_path, work_dir)
-                wav_16k = work_dir / "audio_16k.wav"
-
-                speakers = sorted({s["speaker"] for s in segments})
-                print(f"=== DIARIZATION SUMMARY (Job {job.id}) ===", flush=True)
-                print("speakers:", speakers, flush=True)
-                print("segments:", len(segments), flush=True)
-                print("===========================", flush=True)
-
+                # Whisperモデルロード（キャッシュ）
                 if job.model_name not in model_cache:
                     model_cache[job.model_name] = whisper.load_model(job.model_name)
                 model = model_cache[job.model_name]
 
+                wav_16k = work_dir / "audio_16k.wav"
+                ensure_wav_16k_mono(input_path, wav_16k)
+
+                # ✅ 改善策①：diarize=Falseなら一括文字起こし
+                if not job.diarize:
+                    kwargs = {"fp16": False}
+                    if job.language and job.language != "auto":
+                        kwargs["language"] = job.language
+
+                    res = model.transcribe(str(wav_16k), **kwargs)
+                    job.output_text = (res.get("text") or "").strip()
+                    job.status = "done"
+                    job.progress = 100
+                    job.finished_at = timezone.now()
+                    job.save()
+                    self.stdout.write(self.style.SUCCESS(f"Job {job.id} finished (no diarize)."))
+                    continue
+
+                # diarize=True の場合
+                segments = diarize_with_pyannote(input_path, work_dir)
+                segments = merge_segments(segments, min_dur=1.2, gap=0.4)
+
                 results = []
-                total = len(segments)
+                total = len(segments) or 1
 
                 for idx, seg in enumerate(segments, start=1):
                     speaker = seg["speaker"]
                     start = seg["start"]
                     duration = seg["end"] - start
-
                     if duration < 0.1:
                         continue
 
                     chunk_path = work_dir / f"seg_{idx:03d}.wav"
-                    subprocess.run([
-                        "ffmpeg", "-y", "-ss", str(start), "-t", str(duration),
-                        "-i", str(wav_16k), "-ac", "1", "-ar", "16000", str(chunk_path)
-                    ], capture_output=True)
+                    run([
+                        "ffmpeg", "-y",
+                        "-hide_banner", "-loglevel", "error",
+                        "-ss", str(start), "-t", str(duration),
+                        "-i", str(wav_16k),
+                        "-ac", "1", "-ar", "16000",
+                        str(chunk_path)
+                    ])
 
                     kwargs = {"fp16": False}
                     if job.language and job.language != "auto":
                         kwargs["language"] = job.language
 
                     res = model.transcribe(str(chunk_path), **kwargs)
-                    text = res.get("text", "").strip()
-
+                    text = (res.get("text") or "").strip()
                     if text:
                         results.append(f"[{speaker}]: {text}")
 
@@ -177,3 +218,8 @@ class Command(BaseCommand):
                 job.finished_at = timezone.now()
                 job.save()
                 self.stdout.write(self.style.ERROR(f"Job {job.id} failed: {e}"))
+
+            finally:
+                # ✅ Render節約：作業ディレクトリ掃除
+                if work_dir.exists():
+                    shutil.rmtree(work_dir, ignore_errors=True)
