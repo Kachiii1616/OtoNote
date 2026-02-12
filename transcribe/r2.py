@@ -2,6 +2,7 @@
 import os
 import boto3
 from botocore.config import Config
+from typing import Union
 
 def _require_env(name: str) -> str:
     v = os.getenv(name)
@@ -22,7 +23,7 @@ def r2_client():
 def bucket_name() -> str:
     return _require_env("R2_BUCKET_NAME")
 
-def upload_fileobj(fileobj, key: str, content_type: str | None = None):
+def upload_fileobj(fileobj, key: str, content_type: Union[str, None] = None):
     s3 = r2_client()
     extra = {}
     if content_type:
