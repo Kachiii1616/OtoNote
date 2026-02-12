@@ -166,6 +166,8 @@ macOS:
 
 brew install ffmpeg
 
+---
+
 8.2 Python 依存
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
@@ -180,6 +182,8 @@ python manage.py runserver
 8.5 Worker 起動（別ターミナル）
 python manage.py transcribe_worker
 
+---
+
 9. 注意点（現状の仕様ギャップ）
 
 TranscriptionJob.diarize があるが、worker 側で参照していないため 現状は常に diarization を実行します。
@@ -188,16 +192,29 @@ TranscriptionJob.segment_sec があるが、worker 側は split_audio() を定�
 
 将来的に「長尺音声を一定秒数で切ってWhisper」等に拡張可能。
 
+---
+
 10. トラブルシューティング
 
-1.queued のまま進まない
+  1.queued のまま進まない
 　・Worker が起動していない可能性が最有力
 　・DB が本番で揮発（SQLite）しておりジョブが消えている可能性もある
 
-2.HF_TOKEN missing
+  2.HF_TOKEN missing
    .env / 環境変数に HF_TOKEN をセット
     確認：echo $HF_TOKEN
 
-3.ffmpeg not found
+  3.ffmpeg not found
    ・ffmpeg -version が通るか確認
 　　・PATH 設定を見直す
+
+---
+
+11. 今後の改善案
+　・Renderでの実装
+　・job.diarize=False の場合は diarization をスキップし、全体を Whisper で一括文字起こし
+　・diarization を使う場合、セグメントをまとめる（短すぎる断片の結合）ことで精度と速度を改善
+　・segment_sec を使って長尺を分割し、メモリ/時間を安定化
+　・本番DBを PostgreSQL にして永続化（Render 等）
+　・キューを Redis + RQ/Celery へ移行（ポーリングをやめる）
+ 
