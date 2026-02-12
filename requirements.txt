@@ -102,10 +102,7 @@ tzdata==2025.3
 urllib3==2.6.3
 yarl==1.22.0
 zipp==3.23.0
-<<<<<<< HEAD
 gunicorn==22.0.0
 dj-database-url
 psycopg2-binary
-=======
 gunicorn==22.0.0
->>>>>>> deploy
