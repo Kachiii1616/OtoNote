@@ -166,8 +166,6 @@ macOS:
 
 brew install ffmpeg
 
----
-
 8.2 Python 依存
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
