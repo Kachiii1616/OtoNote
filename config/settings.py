@@ -11,8 +11,14 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+<<<<<<< HEAD
 """別ワーカーを追加したため追加"""
 import dj_database_url
+=======
+"""別ワーカーを追加したため追加
+import dj_database_url
+"""
+>>>>>>> deploy
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -79,8 +85,14 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+<<<<<<< HEAD
 """
 別のバックグラウンドへ変更のため書き換え
+=======
+
+
+#別のバックグラウンドへ変更のため書き換え
+>>>>>>> deploy
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -88,6 +100,7 @@ DATABASES = {
     }
 }
 """
+<<<<<<< HEAD
 
 
 DATABASES = {
@@ -96,7 +109,16 @@ DATABASES = {
         conn_max_age=600,
     )
 }
+=======
+>>>>>>> deploy
 
+DATABASES = {
+    "default": dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+    )
+}
+"""
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators

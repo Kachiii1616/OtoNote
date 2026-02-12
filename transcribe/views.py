@@ -3,6 +3,7 @@ from django.http import HttpResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from .models import TranscriptionJob
 import unicodedata as ud
+from django.http import JsonResponse
 
 class JobCreateForm(forms.ModelForm):
     MODEL_CHOICES = [
@@ -82,4 +83,11 @@ def job_list(request):
     jobs = TranscriptionJob.objects.order_by("-created_at")[:50]
     return render(request, "transcribe/job_list.html", {"jobs": jobs})
 
-
+def job_status_api(request, job_id):
+    job = get_object_or_404(TranscriptionJob, id=job_id)
+    return JsonResponse({
+        "status": job.status,
+        "progress": job.progress,
+        "output_text": job.output_text if job.status == "done" else "",
+        "error": job.error_message,
+    })
