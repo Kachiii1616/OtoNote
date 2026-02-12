@@ -1,9 +1,13 @@
 from django import forms
-from django.http import HttpResponse, Http404
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+
+import uuid
+
 from .models import TranscriptionJob
-import unicodedata as ud
-from django.http import JsonResponse
+from .r2 import upload_fileobj
+
 
 class JobCreateForm(forms.ModelForm):
     MODEL_CHOICES = [
@@ -38,6 +42,7 @@ class JobCreateForm(forms.ModelForm):
 
     class Meta:
         model = TranscriptionJob
+        # input_file を使うが、保存先はローカルではなくR2にする（下のsaveで差し替える）
         fields = ["input_file", "model_name", "segment_sec", "language", "diarize"]
         labels = {
             "input_file": "音声ファイル",
@@ -56,7 +61,43 @@ class JobCreateForm(forms.ModelForm):
             }),
         }
 
+    def save(self, commit=True):
+        """
+        フォーム経由でも必ずR2へアップし、r2_key/original_filename を保存。
+        input_file（ローカル）には保存しない方針。
+        """
+        instance: TranscriptionJob = super().save(commit=False)
+
+        f = self.files.get("input_file")
+        if not f:
+            raise forms.ValidationError("音声ファイルが選択されていません。")
+
+        key = f"input/{timezone.now():%Y%m%d}/{uuid.uuid4()}_{f.name}"
+        upload_fileobj(
+            f.file,
+            key=key,
+            content_type=getattr(f, "content_type", None),
+        )
+
+        instance.r2_key = key
+        instance.original_filename = f.name
+        instance.status = "queued"
+        instance.progress = 0
+        instance.error_message = ""
+        instance.output_text = ""
+
+        # ローカル保存はしない（あえて空に）
+        instance.input_file = None
+
+        if commit:
+            instance.save()
+        return instance
+
+
 def job_create(request):
+    """
+    フォーム画面から作成しても、R2にアップ→queuedで登録される。
+    """
     if request.method == "POST":
         form = JobCreateForm(request.POST, request.FILES)
         if form.is_valid():
@@ -66,24 +107,29 @@ def job_create(request):
         form = JobCreateForm()
     return render(request, "transcribe/job_create.html", {"form": form})
 
+
 def job_detail(request, job_id: int):
     job = get_object_or_404(TranscriptionJob, id=job_id)
     return render(request, "transcribe/job_detail.html", {"job": job})
+
 
 def job_download(request, job_id: int):
     job = get_object_or_404(TranscriptionJob, id=job_id)
     if job.status != "done":
         raise Http404("Not ready")
+
     filename = f"transcript_job_{job.id}.txt"
     resp = HttpResponse(job.output_text, content_type="text/plain; charset=utf-8")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
 
+
 def job_list(request):
     jobs = TranscriptionJob.objects.order_by("-created_at")[:50]
     return render(request, "transcribe/job_list.html", {"jobs": jobs})
 
-def job_status_api(request, job_id):
+
+def job_status_api(request, job_id: int):
     job = get_object_or_404(TranscriptionJob, id=job_id)
     return JsonResponse({
         "status": job.status,
@@ -91,3 +137,34 @@ def job_status_api(request, job_id):
         "output_text": job.output_text if job.status == "done" else "",
         "error": job.error_message,
     })
+
+
+def new(request):
+    """
+    /new/ のシンプル画面（audio という name の input を想定）
+    ここもR2へアップ→queuedで登録。
+    """
+    if request.method == "POST":
+        f = request.FILES["audio"]
+
+        key = f"input/{timezone.now():%Y%m%d}/{uuid.uuid4()}_{f.name}"
+        upload_fileobj(
+            f.file,
+            key=key,
+            content_type=getattr(f, "content_type", None),
+        )
+
+        job = TranscriptionJob.objects.create(
+            status="queued",
+            progress=0,
+            model_name="small",
+            segment_sec=600,
+            language="auto",
+            diarize=True,
+            original_filename=f.name,
+            r2_key=key,
+            input_file=None,  # ローカル保存しない
+        )
+        return redirect("job_detail", job_id=job.id)
+
+    return render(request, "transcribe/new.html")
