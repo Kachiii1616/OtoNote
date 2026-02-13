@@ -1,3 +1,4 @@
+# urls.py の決定版
 from django.urls import path
 from . import views
 
@@ -6,5 +7,6 @@ urlpatterns = [
     path("new/", views.job_create, name="job_create"),
     path("jobs/<int:job_id>/", views.job_detail, name="job_detail"),
     path("jobs/<int:job_id>/download/", views.job_download, name="job_download"),
+    # APIエンドポイント
+    path('api/status/<int:job_id>/', views.job_status_api, name='job_status_api'),
 ]
-

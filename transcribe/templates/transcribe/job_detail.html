@@ -323,6 +323,53 @@
 </head>
 
 <body>
+  <script>
+    const jobId = "{{ job.id }}";
+    
+    // 進捗率やステータスを画面に反映させる関数
+    function updateUI(data) {
+        // ステータスバッジのテキストを更新
+        const pill = document.querySelector('.statusPill');
+        if (data.status === 'done') pill.className = 'statusPill pillDone', pill.innerText = '✅ DONE';
+        if (data.status === 'running') pill.className = 'statusPill pillRun', pill.innerText = '🫧 RUNNING';
+        
+        // プログレスバーの更新
+        const fill = document.querySelector('.progressFill');
+        const text = document.querySelector('.progressWrap b');
+        if (fill) fill.style.width = data.progress + '%';
+        if (text) text.innerText = data.progress + '%';
+    }
+
+    function checkStatus() {
+        // views.py で定義する予定の API URL
+        fetch(`/transcribe/api/status/${jobId}/`)
+            .then(res => res.json())
+            .then(data => {
+                updateUI(data);
+
+                if (data.status === 'done') {
+                    // 完了したらページ全体をリロードして、Downloadボタンや結果エリアを表示させる
+                    location.reload(); 
+                } else if (data.status === 'error') {
+                    // エラー時はリロードしてエラーメッセージを表示
+                    location.reload();
+                } else {
+                    // 実行中または待機中なら、3秒後にまたチェック
+                    setTimeout(checkStatus, 3000);
+                }
+            })
+            .catch(err => {
+                console.error("Status check failed", err);
+                // ネットワークエラーなどの場合は少し長めに待って再試行
+                setTimeout(checkStatus, 5000);
+            });
+    }
+
+    // 最初の読み込み時に、まだ完了していなければチェックを開始
+    {% if job.status != 'done' and job.status != 'error' %}
+        checkStatus();
+    {% endif %}
+</script>
   <div class="wrap">
     <div class="card" role="main">
       <div class="header">

@@ -8,6 +8,8 @@ import uuid
 from .models import TranscriptionJob
 from .r2 import upload_fileobj
 
+from django.http import JsonResponse
+from .models import TranscriptionJob
 
 class JobCreateForm(forms.ModelForm):
     MODEL_CHOICES = [
@@ -168,3 +170,13 @@ def new(request):
         return redirect("job_detail", job_id=job.id)
 
     return render(request, "transcribe/new.html")
+
+def job_status_api(request, job_id):
+    try:
+        job = TranscriptionJob.objects.get(id=job_id)
+        return JsonResponse({
+            'status': job.status,
+            'progress': job.progress,
+        })
+    except TranscriptionJob.DoesNotExist:
+        return JsonResponse({'error': 'Job not found'}, status=404)
